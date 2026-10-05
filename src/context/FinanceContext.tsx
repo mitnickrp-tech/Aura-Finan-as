@@ -8,6 +8,23 @@ import {
   INITIAL_TRANSACTIONS,
 } from '../utils/initialData';
 import { isDateInPeriod } from '../utils/formatters';
+import { useAuth } from './AuthContext';
+import {
+  seedUserDataIfEmpty,
+  dbAddTransaction,
+  dbUpdateTransaction,
+  dbDeleteTransaction,
+  dbAddAccount,
+  dbUpdateAccount,
+  dbDeleteAccount,
+  dbUpdateCategory,
+  dbAddGoal,
+  dbUpdateGoal,
+  dbDeleteGoal,
+  dbAddRecurring,
+  dbUpdateRecurring,
+  dbDeleteRecurring,
+} from '../services/dbService';
 
 interface FinanceContextType {
   transactions: Transaction[];
@@ -73,6 +90,8 @@ const STORAGE_KEYS = {
 };
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
+
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
@@ -126,91 +145,39 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [periodFilter, setPeriodFilter] = useState<TimeFilterPeriod>('this_month');
 
   // Core Data
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-    } catch {
-      return INITIAL_TRANSACTIONS;
-    }
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
+  const [goals, setGoals] = useState<Goal[]>(INITIAL_GOALS);
+  const [recurring, setRecurring] = useState<RecurringBill[]>(INITIAL_RECURRING);
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-      return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
-    } catch {
-      return INITIAL_CATEGORIES;
-    }
-  });
-
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-      return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
-    } catch {
-      return INITIAL_ACCOUNTS;
-    }
-  });
-
-  const [goals, setGoals] = useState<Goal[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.GOALS);
-      return saved ? JSON.parse(saved) : INITIAL_GOALS;
-    } catch {
-      return INITIAL_GOALS;
-    }
-  });
-
-  const [recurring, setRecurring] = useState<RecurringBill[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.RECURRING);
-      return saved ? JSON.parse(saved) : INITIAL_RECURRING;
-    } catch {
-      return INITIAL_RECURRING;
-    }
-  });
-
-  // LocalStorage sync
+  // Auto-seed and sync data with Cloud Database whenever user logs in
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [transactions]);
+    if (!currentUser?.id) return;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
-    } catch (e) {
-      console.error(e);
+    const userId = currentUser.id;
+    let isMounted = true;
+    async function syncWithDatabase() {
+      try {
+        const userScopedData = await seedUserDataIfEmpty(userId);
+        if (isMounted) {
+          setTransactions(userScopedData.transactions);
+          setCategories(userScopedData.categories);
+          setAccounts(userScopedData.accounts);
+          setGoals(userScopedData.goals);
+          setRecurring(userScopedData.recurring);
+        }
+      } catch (err) {
+        console.warn('Sync with database fallback:', err);
+      }
     }
-  }, [categories]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [accounts]);
+    syncWithDatabase();
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(goals));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [goals]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.RECURRING, JSON.stringify(recurring));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [recurring]);
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
 
   // Recalculate Account Balances automatically based on transactions
   useEffect(() => {
@@ -283,6 +250,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Transaction Actions
   const addTransaction = (newTx: Omit<Transaction, 'id'>) => {
     const id = `tx-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const userId = currentUser?.id || 'default_user';
     
     // Check if installments requested (> 1)
     if (newTx.installments && newTx.installments.total > 1) {
@@ -301,7 +269,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const d = String(targetDate.getDate()).padStart(2, '0');
         const formattedDate = `${y}-${m}-${d}`;
         
-        createdTxs.push({
+        const instTx: Transaction = {
           ...newTx,
           id: i === 1 ? parentId : `tx-${Date.now()}-${i}`,
           amount: installmentAmount,
@@ -313,12 +281,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             total: totalInstallments,
             parentId,
           },
-        });
+        };
+
+        createdTxs.push(instTx);
+        dbAddTransaction(userId, instTx);
       }
       
       setTransactions((prev) => [...createdTxs, ...prev]);
     } else {
-      setTransactions((prev) => [{ ...newTx, id }, ...prev]);
+      const fullTx: Transaction = { ...newTx, id };
+      setTransactions((prev) => [fullTx, ...prev]);
+      dbAddTransaction(userId, fullTx);
     }
   };
 
@@ -326,43 +299,52 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTransactions((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updated } : t))
     );
+    if (currentUser?.id) {
+      dbUpdateTransaction(currentUser.id, id, updated);
+    }
   };
 
   const deleteTransaction = (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    if (currentUser?.id) {
+      dbDeleteTransaction(currentUser.id, id);
+    }
   };
 
   const toggleTransactionStatus = (id: string) => {
-    setTransactions((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' }
-          : t
-      )
-    );
+    const tx = transactions.find((t) => t.id === id);
+    if (!tx) return;
+    const newStatus = tx.status === 'completed' ? 'pending' : 'completed';
+    updateTransaction(id, { status: newStatus });
   };
 
   // Account Actions
   const addAccount = (newAcc: Omit<Account, 'id' | 'currentBalance'>) => {
     const id = `acc-${Date.now()}`;
-    setAccounts((prev) => [
-      ...prev,
-      {
-        ...newAcc,
-        id,
-        currentBalance: newAcc.initialBalance,
-      },
-    ]);
+    const userId = currentUser?.id || 'default_user';
+    const fullAcc: Account = {
+      ...newAcc,
+      id,
+      currentBalance: newAcc.initialBalance,
+    };
+    setAccounts((prev) => [...prev, fullAcc]);
+    dbAddAccount(userId, fullAcc);
   };
 
   const updateAccount = (id: string, updated: Partial<Account>) => {
     setAccounts((prev) =>
       prev.map((a) => (a.id === id ? { ...a, ...updated } : a))
     );
+    if (currentUser?.id) {
+      dbUpdateAccount(currentUser.id, id, updated);
+    }
   };
 
   const deleteAccount = (id: string) => {
     setAccounts((prev) => prev.filter((a) => a.id !== id));
+    if (currentUser?.id) {
+      dbDeleteAccount(currentUser.id, id);
+    }
   };
 
   // Category Actions
@@ -370,37 +352,40 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCategories((prev) =>
       prev.map((c) => (c.id === id ? { ...c, monthlyBudget } : c))
     );
+    if (currentUser?.id) {
+      dbUpdateCategory(currentUser.id, id, { monthlyBudget });
+    }
   };
 
   // Goal Actions
   const addGoal = (newGoal: Omit<Goal, 'id' | 'currentAmount'>) => {
     const id = `goal-${Date.now()}`;
-    setGoals((prev) => [
-      ...prev,
-      {
-        ...newGoal,
-        id,
-        currentAmount: 0,
-      },
-    ]);
+    const userId = currentUser?.id || 'default_user';
+    const fullGoal: Goal = {
+      ...newGoal,
+      id,
+      currentAmount: 0,
+    };
+    setGoals((prev) => [...prev, fullGoal]);
+    dbAddGoal(userId, fullGoal);
   };
 
   const updateGoal = (id: string, updated: Partial<Goal>) => {
     setGoals((prev) =>
       prev.map((g) => (g.id === id ? { ...g, ...updated } : g))
     );
+    if (currentUser?.id) {
+      dbUpdateGoal(currentUser.id, id, updated);
+    }
   };
 
   const contributeToGoal = (id: string, amount: number, accountId: string) => {
-    // Increase goal currentAmount
-    setGoals((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, currentAmount: g.currentAmount + amount } : g))
-    );
-
-    // Create corresponding transaction
     const targetGoal = goals.find((g) => g.id === id);
-    const today = new Date().toISOString().split('T')[0];
+    const newAmount = (targetGoal?.currentAmount || 0) + amount;
     
+    updateGoal(id, { currentAmount: newAmount });
+
+    const today = new Date().toISOString().split('T')[0];
     if (amount > 0) {
       addTransaction({
         type: 'expense',
@@ -430,16 +415,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteGoal = (id: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== id));
+    if (currentUser?.id) {
+      dbDeleteGoal(currentUser.id, id);
+    }
   };
 
   // Recurring bills actions
   const addRecurring = (bill: Omit<RecurringBill, 'id'>) => {
     const id = `rec-${Date.now()}`;
-    setRecurring((prev) => [...prev, { ...bill, id }]);
+    const userId = currentUser?.id || 'default_user';
+    const fullBill: RecurringBill = { ...bill, id };
+    setRecurring((prev) => [...prev, fullBill]);
+    dbAddRecurring(userId, fullBill);
   };
 
   const deleteRecurring = (id: string) => {
     setRecurring((prev) => prev.filter((r) => r.id !== id));
+    if (currentUser?.id) {
+      dbDeleteRecurring(currentUser.id, id);
+    }
   };
 
   const payRecurringBill = (billId: string) => {
@@ -468,6 +462,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRecurring((prev) =>
       prev.map((r) => (r.id === billId ? { ...r, lastPaidMonth: currentMonthStr } : r))
     );
+    if (currentUser?.id) {
+      dbUpdateRecurring(currentUser.id, billId, { lastPaidMonth: currentMonthStr });
+    }
   };
 
   // Reset to default
@@ -477,6 +474,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setAccounts(INITIAL_ACCOUNTS);
     setGoals(INITIAL_GOALS);
     setRecurring(INITIAL_RECURRING);
+    if (currentUser?.id) {
+      seedUserDataIfEmpty(currentUser.id);
+    }
   };
 
   const clearAllData = () => {
@@ -494,7 +494,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       goals,
       recurring,
       exportedAt: new Date().toISOString(),
-      version: '1.0',
+      version: '2.0-cloud',
     };
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });

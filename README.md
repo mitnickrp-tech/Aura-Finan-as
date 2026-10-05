@@ -77,20 +77,21 @@ O **Aura Finanças** é uma aplicação web moderna, rápida e privativa para ge
 
 ---
 
-## 🗄️ Como os Dados são Armazenados?
+## 🗄️ Banco de Dados & Semeadura Automática (*Auto-Seed*)
 
-O aplicativo foi projetado no padrão **Local-First com persistência em LocalStorage**:
+A aplicação conta com uma arquitetura de banco de dados híbrida e robusta (**Cloud Database + Cache Local Offline-First**):
 
-1. **Persistência Real**:
-   - Todas as transações, contas cadastradas, novos usuários, metas e alterações de senha ficam salvas **no armazenamento local do seu navegador** (`localStorage`).
-   - Ao fechar o navegador, desligar o computador ou atualizar a página, **todos os seus lançamentos permanecem salvos**.
-2. **Dados Iniciais (*Seed Data*)**:
-   - Ao iniciar pela primeira vez, o app carrega uma massa de dados de teste (contas Nubank, Itaú, XP e transações do mês) para que a interface e os gráficos já comecem povoados.
-   - Você pode apagar todos os dados a qualquer momento pelo menu de **Backup e Dados** (`Zerar Dados`) ou editar tudo como preferir.
-3. **Conexão com Banco de Dados na Nuvem (Opcional)**:
-   - Caso deseje sincronizar os dados entre múltiplos computadores e celulares em tempo real com contas online, a aplicação pode ser integrada diretamente com:
-     - **Firebase Firestore**: Banco NoSQL em nuvem com sincronização em tempo real.
-     - **PostgreSQL / Cloud SQL**: Banco relacional com API backend Node.js/Express.
+1. **Auto-Criação de Tabelas/Coleções e Semeadura Inicial (*Auto-Seed*)**:
+   - Assim que um novo usuário se cadastra ou faz login pela primeira vez, o serviço `dbService.ts` verifica a existência das coleções no banco de dados em nuvem.
+   - **Se o banco estiver vazio**: O sistema cria automaticamente todas as estruturas necessárias (`categories`, `accounts`, `transactions`, `goals`, `recurring`) e **já executa a semeadura (*seed*) completa** com categorias brasileiras, contas correntes e carteiras de investimento, metas e lançamentos realistas de exemplo.
+   - Dessa forma, o usuário nunca encontra uma tela estéril ou com erros de tabela inexistente.
+2. **Sincronização em Nuvem em Tempo Real**:
+   - Todas as transações criadas, contas modificadas, limites de orçamento, metas e contas a pagar são salvas no banco de dados na nuvem associadas ao `userId` do usuário autenticado.
+   - Os usuários e credenciais de login (com hash seguro **SHA-256**) também são persistidos na coleção `/users`.
+3. **Resiliência e Cache Offline**:
+   - Em caso de falha de conexão de rede ou lentidão temporária, o sistema possui cache em `localStorage`, permitindo continuar navegando e operando sem travamentos.
+4. **Exportação & Backup Manual**:
+   - Você pode exportar backups completos em **JSON** ou extratos tabulares em **CSV** diretamente pelo painel a qualquer momento.
 
 ---
 
@@ -98,6 +99,7 @@ O aplicativo foi projetado no padrão **Local-First com persistência em LocalSt
 
 - **Frontend Core**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
 - **Build Tool**: [Vite 8](https://vitejs.dev/)
+- **Banco de Dados em Nuvem**: [Firebase Cloud Firestore](https://firebase.google.com/products/firestore) (com regras de segurança e auto-seeding)
 - **Estilização**: [Tailwind CSS v4](https://tailwindcss.com/) com suporte a classes customizadas para Dark Mode
 - **Ícones**: [Lucide React](https://lucide.dev/)
 - **Animações**: [Motion](https://motion.dev/)

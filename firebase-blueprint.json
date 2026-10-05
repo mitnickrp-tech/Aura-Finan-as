@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and authentication credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "passwordHash": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "passwordHash"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Income, expense or transfer financial record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense", "transfer"] },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "description": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 50 },
+        "accountId": { "type": "string", "maxLength": 50 },
+        "destinationAccountId": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["completed", "pending"] },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "userId", "type", "amount", "date", "description", "category", "accountId", "status"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "Bank account, credit card, or wallet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["checking", "savings", "credit", "investment", "cash"] },
+        "institution": { "type": "string", "maxLength": 100 },
+        "initialBalance": { "type": "number" },
+        "currentBalance": { "type": "number" },
+        "creditLimit": { "type": "number" },
+        "color": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["id", "userId", "name", "type", "institution", "initialBalance", "currentBalance", "color"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Financial categorization with budget",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["expense", "income"] },
+        "icon": { "type": "string", "maxLength": 50 },
+        "color": { "type": "string", "maxLength": 20 },
+        "monthlyBudget": { "type": "number" }
+      },
+      "required": ["id", "userId", "name", "type", "icon", "color"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "Financial savings goal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 100 },
+        "targetAmount": { "type": "number" },
+        "currentAmount": { "type": "number" },
+        "deadline": { "type": "string" },
+        "category": { "type": "string", "maxLength": 50 },
+        "color": { "type": "string", "maxLength": 20 },
+        "icon": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "title", "targetAmount", "currentAmount", "deadline"]
+    },
+    "RecurringBill": {
+      "title": "RecurringBill",
+      "description": "Fixed recurring expense or income",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 100 },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["expense", "income"] },
+        "dueDay": { "type": "number" },
+        "category": { "type": "string", "maxLength": 50 },
+        "accountId": { "type": "string", "maxLength": 50 },
+        "isAutoPaid": { "type": "boolean" },
+        "lastPaidMonth": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "amount", "type", "dueDay", "category", "accountId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User account documents"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User financial transactions"
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "User bank and credit accounts"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "User expense and income categories"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "Goal",
+      "description": "User savings goals"
+    },
+    "/users/{userId}/recurring/{recurringId}": {
+      "schema": "RecurringBill",
+      "description": "User recurring bills and subscriptions"
+    }
+  }
+}

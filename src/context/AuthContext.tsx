@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '../types/auth';
 import { hashPassword } from '../utils/crypto';
+import {
+  findUserByEmailInDb,
+  saveUserToDb,
+  updateUserInDb,
+} from '../services/dbService';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -49,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           userList = [demoUser];
           localStorage.setItem(USERS_KEY, JSON.stringify(userList));
+          saveUserToDb(demoUser).catch((e) => console.warn(e));
         }
 
         setUsers(userList);
@@ -83,7 +89,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Login
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
-    const targetUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+    
+    // Check locally first, or in Cloud Firestore
+    let targetUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!targetUser) {
+      const dbUser = await findUserByEmailInDb(cleanEmail);
+      if (dbUser) {
+        targetUser = dbUser;
+        setUsers((prev) => [...prev, dbUser]);
+      }
+    }
 
     if (!targetUser) {
       return { success: false, error: 'Email não cadastrado. Verifique ou crie uma nova conta.' };
@@ -109,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLocked(false);
       localStorage.setItem(SESSION_KEY, demo.id);
       localStorage.removeItem(LOCKED_KEY);
+      saveUserToDb(demo).catch(() => {});
     } else {
       // Re-create demo
       const demoHash = await hashPassword('senha123');
@@ -124,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLocked(false);
       localStorage.setItem(SESSION_KEY, newDemo.id);
       localStorage.removeItem(LOCKED_KEY);
+      saveUserToDb(newDemo).catch(() => {});
     }
   };
 
@@ -148,9 +165,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'A senha deve conter no mínimo 6 caracteres.' };
     }
 
-    const exists = users.some((u) => u.email.toLowerCase() === cleanEmail);
-    if (exists) {
+    // Check duplicate
+    const existsLocally = users.some((u) => u.email.toLowerCase() === cleanEmail);
+    if (existsLocally) {
       return { success: false, error: 'Este email já está cadastrado. Faça login ou use outro.' };
+    }
+
+    const existsInDb = await findUserByEmailInDb(cleanEmail);
+    if (existsInDb) {
+      return { success: false, error: 'Este email já está cadastrado no banco de dados. Faça login.' };
     }
 
     const passwordHash = await hashPassword(password);
@@ -167,6 +190,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLocked(false);
     localStorage.setItem(SESSION_KEY, newUser.id);
     localStorage.removeItem(LOCKED_KEY);
+
+    // Save to Cloud Firestore
+    await saveUserToDb(newUser);
 
     return { success: true };
   };
@@ -204,6 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newObj = { ...currentUser, ...updated };
     setCurrentUser(newObj);
     setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? newObj : u)));
+    updateUserInDb(currentUser.id, updated).catch((e) => console.warn(e));
   };
 
   // Change Password
@@ -226,6 +253,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = { ...currentUser, passwordHash: hashedNew };
     setCurrentUser(updated);
     setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updated : u)));
+    await updateUserInDb(currentUser.id, { passwordHash: hashedNew });
 
     return { success: true };
   };
