@@ -1,0 +1,6 @@
+{
+  "name": "Aura Finanças - Gestão Financeira Pessoal",
+  "description": "Aplicativo completo de controle financeiro pessoal: receitas, despesas, orçamentos mensais, metas de economia, contas bancárias e relatórios interativos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
