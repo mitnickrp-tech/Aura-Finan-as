@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Lock, Mail, User, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, Mail, User, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useFinance } from '../../context/FinanceContext';
 
 export const AuthScreen: React.FC = () => {
   const { login, register, loginDemo } = useAuth();
@@ -66,8 +67,22 @@ export const AuthScreen: React.FC = () => {
     setMode('login');
   };
 
+  const { isDarkMode, toggleDarkMode } = useFinance();
+
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col justify-center items-center px-4 py-12 selection:bg-emerald-500/20">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col justify-center items-center px-4 py-12 selection:bg-emerald-500/20 relative">
+      {/* Top right theme toggle */}
+      <div className="absolute top-4 right-4">
+        <button
+          type="button"
+          onClick={toggleDarkMode}
+          title={isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+          className="p-2 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs transition-colors"
+        >
+          {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-neutral-600" />}
+        </button>
+      </div>
+
       <div className="w-full max-w-md">
         {/* Brand header */}
         <div className="text-center mb-8">

@@ -88,9 +88,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       if (isDarkMode) {
         document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
         localStorage.setItem(STORAGE_KEYS.THEME, 'dark');
       } else {
         document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+        document.documentElement.style.colorScheme = 'light';
         localStorage.setItem(STORAGE_KEYS.THEME, 'light');
       }
     } catch (e) {
